@@ -2,10 +2,10 @@
 <project version="4">
   <component name="PublishConfigData">
     <serverData>
-      <paths name="ekomarov@34.86.74.238:22">
+      <paths name="komarov@192.168.1.144:22">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/ekomarov/kaggle/competitive-data-science-predict-future-sales/src" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="/home/komarov/kaggle/predict-future-sales/src" local="$PROJECT_DIR$" web="/" />
           </mappings>
         </serverdata>
       </paths>

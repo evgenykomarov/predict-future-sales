@@ -6,6 +6,7 @@ Created on Mon Jun 22 11:54:46 2020
 """
 
 import pandas as pd
+from datetime import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -195,6 +196,9 @@ def correlate_pair(v1, v2):
     return np.corrcoef(v1[mask], v2[mask])[0, 1]
 
 
+def get_today():
+    return datetime.strftime(datetime.date(datetime.now()), '%Y-%m-%d')
+
 def find_duplicates_features(matrix, id_cols=['item_cnt_month', 'ID', 'shop_id', 'item_id', 'item_category_id'],
                              date_col='date_block_num',
                              date_thresh=11,
@@ -324,38 +328,6 @@ def cross_val_predict_approximate(estimator, X, Y, Y_strat, X_test, cv):
     return preds, preds_std
 
 
-def embed_categorical_features():
-    items = pd.read_csv('../data/items.csv')
-    shops = pd.read_csv('../data/shops.csv')
-    cats = pd.read_csv('../data/item_categories.csv')
-
-    items.item_name = [text_features.norm_text(x) for x in items.item_name.values]
-    shops.shop_name = [text_features.norm_text(x) for x in shops.shop_name.values]
-    cats.item_category_name = [text_features.norm_text(x) for x in cats.item_category_name.values]
-
-    # D = 4 seems mapping different items to same vector too often
-    # D = 5 starts to distinguish
-    item_features = text_features.text_feature_to_vec(items.item_name.values, D=5, epochs=3)
-    text_features.show_neighbors(items.item_name.values, item_features)
-
-    shop_features = text_features.text_feature_to_vec(shops.shop_name.values, D=3, epochs=1000)
-    text_features.show_neighbors(shops.shop_name.values, shop_features)
-
-    cat_features = text_features.text_feature_to_vec(cats.item_category_name.values, D=3, epochs=1000)
-    text_features.show_neighbors(cats.item_category_name.values, cat_features)
-
-    def merge_feats(df, idx_col, name, features):
-        _ = pd.DataFrame(features, columns=['%s_%s' % (name, i) for i in range(features.shape[1])])
-        _[idx_col] = df[idx_col].values
-        df = df.merge(_, on=idx_col, how='left')
-        return df
-
-    items = merge_feats(items, 'item_id', 'item', item_features)
-    shops = merge_feats(shops, 'shop_id', 'shop', shop_features)
-    cats = merge_feats(cats, 'item_category_id', 'cat', cat_features)
-    items.to_csv('../data/items_nn.csv', index=False)
-    shops.to_csv('../data/shops_nn.csv', index=False)
-    cats.to_csv('../data/item_categories_nn.csv', index=False)
 
 
 # borrowed from here and modified https://www.kaggle.com/dlarionov/feature-engineering-xgboost
@@ -426,7 +398,7 @@ def lag1_expanding_mean_encoding(matrix, date_col='date_block_num', target='item
     # You will need to compute correlation like that
     corr = np.corrcoef(matrix[target].values, encoded_feature.values)[0][1]
     print('corr with target=%.03f' % corr)
-    return encoded_feature
+    return encoded_feature.astype(np.float32)
 
 
 def date_expanding_mean_encoding(matrix, date_col='date_block_num', target='item_cnt_month', group_cols=[], global_mean=None):
@@ -469,7 +441,6 @@ def expanding_mean_encoding(matrix, target='item_cnt_month', group_cols=[], glob
     encoded_feature.fillna(global_mean, inplace=True)
     encoded_feature = encoded_feature.loc[matrix.index]
 
-    # You will need to compute correlation like that
     corr = np.corrcoef(matrix[target].values, encoded_feature)[0][1]
     print(corr)
     return encoded_feature
@@ -498,4 +469,4 @@ def kfold_mean_encoding(all_data, target='target', group_cols=['item_id'], k=5, 
     # You will need to compute correlation like that
     corr = np.corrcoef(all_data[target].values, encoded_feature)[0][1]
     print(corr)
-    return encoded_feature
+    return encoded_feature.astype(np.float32)

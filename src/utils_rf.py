@@ -38,9 +38,9 @@ def rf_err(model, X_train, Y_train, X_valid, Y_valid, clip_low=-np.inf, clip_hig
     pred_tr = np.zeros(Y_train.shape[0])
     for i in tqdm(range(model.n_estimators)):
         pred_val = (pred_val * i +  model.estimators_[i].predict(X_valid)) / (i + 1)
-        pred_tr =  (pred_tr  * i +  model.estimators_[i].predict(X_train)) / (i + 1)
+        pred_tr = (pred_tr * i + model.estimators_[i].predict(X_train)) / (i + 1)
         err_val[i] = mean_squared_error(Y_valid.values, pred_val.clip(clip_low, clip_high))
-        err_tr[i]  = mean_squared_error(Y_train.values, pred_tr.clip(clip_low, clip_high))
+        err_tr[i] = mean_squared_error(Y_train.values, pred_tr.clip(clip_low, clip_high))
     
     err = pd.DataFrame({'tr': err_tr, 'val': err_val})
     print(err.iloc[-1].round(4))
@@ -112,7 +112,7 @@ def get_splits(thresh_counter, f0, n=4):
 
 
 def get_rf_interactions(model, features, n_pairs=10, n_top=5):
-        
+    
     thresh_counter = defaultdict(list)
     thresh_counter2 = defaultdict(list)
     gain_counter = Counter()
@@ -161,29 +161,6 @@ def get_rf_interactions(model, features, n_pairs=10, n_top=5):
     return gain_counter, thresh_counter, thresh_counter2, best_splits2
 
 
-def calc_score_drop(n, model, _features, X_valid, Y_valid, base_score, n_perms=1, clip_down=None, clip_up=None):
-    score_drop = {}
-    importances = pd.Series({f: v for f, v in zip(_features, model.feature_importances_)}).sort_values()
-    features = importances.index.values
-    # going only through worst 100 features
-    if n is None:
-        gen = features
-    else:
-        gen = features[:min(n, len(features))]
-    for ci in tqdm(gen):
-        temp_df = X_valid.copy()
-        cur_score = []
-        for _ in range(n_perms):
-            temp_df[ci] = np.random.permutation(temp_df[ci])
-            val_pred = model.predict(temp_df)
-            cur_score.append(mean_squared_error(Y_valid, val_pred.clip(clip_down, clip_up)))
-        _m = np.array(cur_score).mean()
-        _s = np.array(cur_score).std()
-        score_drop[ci] = (_m - base_score, (_m - base_score) / (_s + 1e-10))
-    score_drop = pd.DataFrame({f: {'mean_drop': a, 'tstat_drop': b} for f, (a, b) in score_drop.items()}).T.sort_values('mean_drop')
-    return importances, score_drop
-
-
 def feature_statistics(X_train, Y_train, X_valid, Y_valid, n_estimators=10, clip_low=-np.inf, clip_high=np.inf, n_top=5):
     
     print("building RF for %s tree" % n_estimators)
@@ -213,3 +190,32 @@ def feature_statistics(X_train, Y_train, X_valid, Y_valid, n_estimators=10, clip
         plt.show()
     
     return model, err, importances, features, gain_counter, thresh_counter, thresh_counter2, best_splits, best_splits2
+
+
+def calc_score_drop(n, model, _features, X_valid, Y_valid, base_score, n_perms=1, clip_down=None, clip_up=None):
+    score_drop = {}
+    importances = pd.Series({f: v for f, v in zip(_features, model.feature_importances_)}).sort_values()
+    features = importances.index.values
+    if base_score is None:
+        val_pred = model.predict(X_valid)
+        base_score = mean_squared_error(Y_valid, val_pred.clip(clip_down, clip_up))
+
+    # going only through worst 100 features
+    if n is None:
+        gen = features
+    else:
+        gen = features[:min(n, len(features))]
+    for ci in tqdm(gen):
+        temp_df = X_valid.copy()
+        cur_score = []
+        for _ in range(n_perms):
+            temp_df[ci] = np.random.permutation(temp_df[ci])
+            val_pred = model.predict(temp_df)
+            cur_score.append(mean_squared_error(Y_valid, val_pred.clip(clip_down, clip_up)))
+        _m = np.array(cur_score).mean()
+        _s = np.array(cur_score).std()
+        score_drop[ci] = (_m - base_score, (_m - base_score) / (_s + 1e-10))
+    score_drop = pd.DataFrame({f: {'mean_drop': a, 'tstat_drop': b} for f, (a, b) in score_drop.items()}).T.sort_values('mean_drop')
+    return importances, score_drop
+
+

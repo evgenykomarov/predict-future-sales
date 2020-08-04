@@ -404,6 +404,7 @@ def features_20209716_0():
     # valid=0.897063
     # test = 0.93606
 
+
 def features_20209716_1():
     train, test, items, shops, cats = load_and_clean()
     matrix = pd.read_parquet('../data_tmp/features_20209716_0.snappy')
@@ -507,6 +508,7 @@ def features_20209716_1():
     fs = evaluate_features(matrix, t_start=11, t_valid=[22], drop_cols=drop_cols)
     # [9]	validation_0-rmse:0.81152	validation_1-rmse:0.99583
     # [9]	validation_0-rmse:0.79891	validation_1-rmse:0.99045
+
 
 def features_20209716_2():
     train, test, items, shops, cats = load_and_clean()
@@ -717,6 +719,9 @@ def features_20209716_4():
 
         trials = Trials()
         best = fmin(train_xgb_wrapper, space, algo=tpe.suggest, max_evals=30, trials=trials)
+        pd.concat([pd.DataFrame(trials.vals), pd.Series(trials.losses(), name='loss')], axis=1).\
+            drop_duplicates().to_csv('../data_tmp/hyperopt.csv')
+
         #  {'colsample_bytree': 1.0, 'max_depth': 12.0, 'min_child_weight': 300.0}
         # {'colsample_bytree': 0.8, 'eta': 0.05, 'max_depth': 10, 'min_child_weight': 500.0, 'n_estimators': 300}
         # {'colsample_bytree': 0.8, 'eta': 0.05, 'max_depth': 12, 'min_child_weight': 600.0, 'n_estimators': 300}
@@ -747,15 +752,22 @@ def features_20209716_4():
     # test=0.89355
 
     matrix = pd.read_parquet('../data_tmp/data_2020-06-14_01.snappy')
-    matrix.drop(['item_name', 'item_category_name', 'shop_name'], axis=1, inplace=True)
+    drop_cols = ['item_name', 'item_category_name', 'shop_name']
+    drop_cols += ['date_shop_0_avg_item_cnt_lag_1_y', 'date_shop_1_avg_item_cnt_lag_1_y', 'date_shop_2_avg_item_cnt_lag_1_y', 'date_cat_1_avg_item_cnt_lag_1_y', 'date_cat_2_avg_item_cnt_lag_1_y', 'date_shop_avg_item_cnt_lag_1', ]
+    drop_cols += ['date_item_avg_item_cnt_lag_2', 'date_item_avg_item_cnt_lag_3', 'date_shop_2_avg_item_cnt_lag_1_x', 'date_item_avg_item_cnt_lag_12', 'month', 'days', ]
+    matrix.drop(drop_cols, axis=1, inplace=True)
     gc.collect()
     matrix = utils.reduce_mem_usage(matrix)
     drop_cols = ['ID', ]
     model, X_train, Y_train, X_valid, Y_valid, X_test = train_xgb(matrix, drop_cols=drop_cols, n_estimators=500, eta=0.02,
-                                                                  colsample_bytree=0.6, max_depth=12, min_child_weight=500)
+                                                                  colsample_bytree=0.6, max_depth=12, min_child_weight=200)
     submission_name = gen_submission(model, X_train, Y_train, X_valid, Y_valid, X_test)
     importances = pd.Series({f: v for f, v in zip(X_train.columns, model.feature_importances_)}).sort_values()
     score_drop = feature_stats.calc_score_drop(None, model, importances, X_valid, Y_valid, clip_down=0, clip_up=20)
+    score_drop[score_drop.mean_drop <= 0]
+    # same_cols, clusters = utils.find_duplicates_features(matrix, corr_sample_size=100000)
+    # score_drop.to_csv('../data_tmp/score_drop_159_subission1.csv')
+    # importances.to_csv('../data_tmp/importances_159_subission1.csv')
     submission_message = 'xgb score_drop best 10: %s\nntree=%s valid=%s' % (', '.join(score_drop.index[::-1][:10]), model.best_iteration, model.best_score)
     print(submission_message)
     print(submission_name)
@@ -774,6 +786,12 @@ def features_20209716_4():
     # xgb_submission_2020-07-17_12.csv
     # valid=0.88035
     # test=0.88250
+
+
+
+
+
+
 
 
     ################################################

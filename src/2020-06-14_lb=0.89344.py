@@ -6,7 +6,7 @@ Created on Wed Jun 10 21:21:24 2020
 """
 
 # %cd "~/kaggle/competitive-data-science-predict-future-sales/src"
-# !ls -lah 
+# !ls -lah
 
 import pandas as pd
 import numpy as np
@@ -28,10 +28,11 @@ import time
 
 cats = pd.read_csv('../data/item_categories.csv')
 items = pd.read_csv('../data/items.csv')
-train = pd.read_csv('../data/sales_train1.csv')
+# train = pd.read_csv('../data/sales_train1.csv')
+train = pd.read_csv('../data/sales_train.csv')
 train.date = train.date.astype('str')
 # train.to_csv('../data/sales_train1.csv', index=False)
-sample_sub = pd.read_csv('../data/sample_submission.csv')
+# sample_sub = pd.read_csv('../data/sample_submission.csv')
 shops = pd.read_csv('../data/shops.csv')
 test = pd.read_csv('../data/test.csv')
 
@@ -39,7 +40,7 @@ def text_feature_to_vec(text_features, D=4, epochs=100):
     """
     naive feature generation from textual categorical features:
     (a very naive non-linear PCA)
-    
+
     feature = bag of words {w_i}
     1. transform all categories into bag of words sparse representation
     2. train simple autoencoder with bottleneck size D
@@ -50,17 +51,17 @@ def text_feature_to_vec(text_features, D=4, epochs=100):
     neigh = KNeighborsClassifier(n_neighbors=3)
     neigh.fit(acx, text_features)
     # print(neigh.predict(xpca[[0], :]))
-    
+
     i = 58
     print(text_features[i])
     nei_shops = text_features[neigh.kneighbors(acx[[i], :])[1]]
     nei_dists = neigh.kneighbors(acx[[i], :])[0]
     print(nei_shops)
     print(nei_dists)
-    
+
     text_features = items.item_name.values
     D = 5
-    
+
     """
     _ = feature_extraction.text.CountVectorizer()
     s = _.fit_transform(text_features)
@@ -70,23 +71,23 @@ def text_feature_to_vec(text_features, D=4, epochs=100):
     print(s.count_nonzero())
     print("input dim = %s %s" % s.shape)
     print('=' * 30)
-    
+
     class DenseTranspose(keras.layers.Layer):
         def __init__(self, dense, activation, **kwargs):
             self.dense = dense
             self.activation = keras.activations.get(activation)
             super().__init__(**kwargs)
-        
+
         def build(self, batch_input_shape):
             # self.biases = self.add_weight(name='bias',
             #                               shape=[self.dense.input_shape[-1]],
             #                               initializer='zeros')
             super().build(batch_input_shape)
-            
+
         def call(self, inputs):
             x = tf.matmul(inputs, self.dense.weights[0], transpose_b=True)# + self.biases
             return self.activation(x)
-    
+
     inputs = keras.Input(shape=(N, ))
     encode = layers.Dense(D, activation='relu')
     # activity_regularizer=keras.regularizers.l2(1e-14)
@@ -102,19 +103,19 @@ def text_feature_to_vec(text_features, D=4, epochs=100):
     print(s.count_nonzero())
     print("input dim = %s %s" % s.shape)
     print('=' * 30)
-    
+
     extractor = keras.Model(inputs=model.inputs, outputs=model.layers[1].output)
-    
+
     return extractor(x).numpy().round(2)
 
 def show_neighbors(item_names, item_features, i=None):
     # item_names = np.array of n_samples names
     # item_features = np.array of n_samples x D encoded features
     # i = item to show neighbors for
-    
+
     if i is None:
         i = np.random.choice(range(len(item_names)))
-    
+
     neigh = KNeighborsClassifier(n_neighbors=20)
     neigh.fit(item_features, item_names)
     # i = 10822
@@ -150,7 +151,7 @@ cat_features = text_feature_to_vec(cats.item_category_name.values, D=3, epochs=1
 show_neighbors(cats.item_category_name.values, cat_features)
 
 # borrowed from here and modified https://www.kaggle.com/dlarionov/feature-engineering-xgboost
-def plot_features(booster, figsize):    
+def plot_features(booster, figsize):
     fig, ax = plt.subplots(1,1,figsize=figsize)
     return plot_importance(booster=booster, ax=ax)
 
@@ -244,6 +245,11 @@ matrix['item_category_id'] = matrix['item_category_id'].astype(np.int8)
 # matrix['subtype_code'] = matrix['subtype_code'].astype(np.int8)
 time.time() - ts
 
+# for c in matrix.columns:
+#     if matrix[c].dtype == 'float16':
+#         matrix[c] = matrix[c].astype(np.float32)
+# matrix.drop(['item_name', 'item_category_name', 'shop_name'], axis=1).to_parquet('../data_tmp/tmp.snappy')
+
 def lag_feature(df, lags, col):
     tmp = df[['date_block_num', 'shop_id', 'item_id', col]]
     for i in tqdm(lags):
@@ -269,12 +275,13 @@ for agg_cols, agg_names, lags in tqdm(
          (['cat_0'], ['cat_0'], [1]),
          (['cat_1'], ['cat_1'], [1]),
          (['cat_2'], ['cat_2'], [1]),
-         (['shop_id'], ['cat_0'], [1]),
-         (['shop_id'], ['cat_1'], [1]),
-         (['shop_id'], ['cat_2'], [1]),
-         (['item_id'], ['shop_0'], [1]),
-         (['item_id'], ['shop_1'], [1]),
-         (['item_id'], ['shop_2'], [1]),]):
+         # (['shop_id'], ['cat_0'], [1]),
+         # (['shop_id'], ['cat_1'], [1]),
+         # (['shop_id'], ['cat_2'], [1]),
+         # (['item_id'], ['shop_0'], [1]),
+         # (['item_id'], ['shop_1'], [1]),
+         # (['item_id'], ['shop_2'], [1]),
+         ]):
     ts = time.time()
     mean_enc_name = '_'.join(['date'] + agg_names + ['avg', 'item_cnt'])
     group = matrix.groupby(['date_block_num'] + agg_cols).agg({'item_cnt_month': ['mean']})
@@ -365,7 +372,7 @@ matrix['item_first_sale'] = matrix['date_block_num'] - matrix.groupby('item_id')
 time.time() - ts
 
 ts = time.time()
-matrix = matrix[matrix.date_block_num > 11]
+# matrix = matrix[matrix.date_block_num > 11]
 time.time() - ts
 
 ts = time.time()
@@ -373,7 +380,7 @@ def fill_na(df):
     for col in tqdm(df.columns):
         if ('_lag_' in col) & (df[col].isnull().any()):
             if ('item_cnt' in col):
-                df[col].fillna(0, inplace=True)         
+                df[col].fillna(0, inplace=True)
     return df
 
 matrix = fill_na(matrix)
@@ -384,7 +391,12 @@ matrix.info()
 for c in matrix.columns:
     if matrix[c].dtype == 'float32':
         matrix[c] = matrix[c].astype('float16')
-matrix.to_pickle('../data/data_2020-06-14_01_replica.pkl')
+# matrix.to_pickle('../data/data_2020-06-14_01_replica.pkl')
+for c in matrix.columns:
+    if matrix[c].dtype == 'float16' or matrix[c].dtype == 'float64':
+        matrix[c] = matrix[c].astype('float32')
+matrix.drop(['item_name', 'shop_name', 'item_category_name'], axis=1).to_parquet('../data_tmp/data_2020-06-14_01_.snappy')
+matrix = pd.read_parquet('../data_tmp/data_2020-06-14_01_.snappy')
 
 del matrix
 del group
@@ -462,8 +474,8 @@ submission = pd.DataFrame({
     "ID": test.index, 
     "item_cnt_month": Y_test
 })
-submission.to_csv('../data/xgb_submission_2020-06-14_01_replica.csv', index=False)
-pd.Series(Y_pred).to_csv('../data/xgb_submission_2020-06-14_01_replica_valid.csv', index=False)
+submission.to_csv('../submission/xgb_submission_2020-06-14_01_replica.csv', index=False)
+pd.Series(Y_pred).to_csv('../submission/xgb_submission_2020-06-14_01_replica_valid.csv', index=False)
 
 plot_features(model, (10,14))
 
